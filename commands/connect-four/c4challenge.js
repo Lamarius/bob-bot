@@ -1,0 +1,255 @@
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, userMention, SlashCommandBuilder } = require('discord.js');
+
+const empty = ':white_circle:';
+const red = ':red_circle:';
+const black = ':black_circle:';
+
+module.exports = {
+    data: new SlashCommandBuilder()
+        .setName('c4challenge')
+        .setDescription('Challenge a loser to connect 4')
+        .addMentionableOption(option => option.setName('loser').setDescription('The loser you want to beat.').setRequired(true)),
+    async execute(interaction) {
+        const loserId = interaction.options.getUser('loser')?.id;
+        const challengerId = interaction.user.id;
+
+        if (!loserId) {
+            // error message
+            return;
+        }
+
+        const gameName = `${challengerId}~${loserId}`;
+
+        const existingGame = interaction.client.games.get(gameName);
+
+        if (existingGame) {
+            // error message
+            return;
+        }
+
+        const rows = 6;
+        const columns = 7;
+        const board = Array(6).fill(empty).map(() => Array(7).fill(empty));
+
+        interaction.client.games.set(gameName, board);
+
+        const reply = printBoard(challengerId, loserId, red, board);
+
+        const one = new ButtonBuilder().setCustomId('one').setEmoji('1️⃣').setStyle(ButtonStyle.Secondary);
+        const two = new ButtonBuilder().setCustomId('two').setEmoji('2️⃣').setStyle(ButtonStyle.Secondary);
+        const three = new ButtonBuilder().setCustomId('three').setEmoji('3️⃣').setStyle(ButtonStyle.Secondary);
+        const four = new ButtonBuilder().setCustomId('four').setEmoji('4️⃣').setStyle(ButtonStyle.Secondary);
+        const five = new ButtonBuilder().setCustomId('five').setEmoji('5️⃣').setStyle(ButtonStyle.Secondary);
+        const six = new ButtonBuilder().setCustomId('six').setEmoji('6️⃣').setStyle(ButtonStyle.Secondary);
+        const seven = new ButtonBuilder().setCustomId('seven').setEmoji('7️⃣').setStyle(ButtonStyle.Secondary);
+        
+        const actions = new ActionRowBuilder().addComponents(one, two, three, four, five);
+        const actions2 = new ActionRowBuilder().addComponents(six, seven);
+        const components = [actions, actions2];
+        const response = await interaction.reply({ content: reply, components: components, withResponse: true });
+
+        const collectorFilter = i => [loserId, challengerId].includes(i);
+
+        const collector = response.resource.message.createMessageComponentCollector({
+            componentType: ComponentType.Button,
+            time: 2_147_483_647
+        });
+
+        let currentTurn = red;
+
+        collector.on('collect', async (i) => {
+            let boardState = false;
+            switch (i.customId) {
+                case 'one':
+                    boardState = drop(0, currentTurn, board);
+                    break;
+                case 'two':
+                    boardState = drop(1, currentTurn, board);
+                    break;
+                case 'three':
+                    boardState = drop(2, currentTurn, board);
+                    break;
+                case 'four':
+                    boardState = drop(3, currentTurn, board);
+                    break;
+                case 'five':
+                    boardState = drop(4, currentTurn, board);
+                    break;
+                case 'six':
+                    boardState = drop(5, currentTurn, board);
+                    break;
+                case 'seven':
+                    boardState = drop(6, currentTurn, board);
+                    break;
+            }
+
+            if (boardState === null) {
+                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, false, true) });
+            } else if (boardState === true) {
+                // victory
+                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, true), components: [], withResponse: false });
+            } else {
+                currentTurn = currentTurn === red ? black : red;
+                i.update( {content: printBoard(challengerId, loserId, currentTurn, board) });
+            }
+        });
+    },
+}
+
+function printBoard(challengerId, loserId, currentTurn, board, victory = false, invalidMove = false) {
+    const loser = userMention(loserId);
+    const challenger = userMention(challengerId);
+
+    let visual = '';
+    board.forEach(row => visual += row.join('') + '\n');
+    visual += ':one::two::three::four::five::six::seven:';
+
+    let message = `${red}${loser}, you have been challenged to 4 In A Line by ${black}${challenger}!`
+    if (victory) {
+        message += `\n${currentTurn} won!`;
+    } else {
+        message += `\n${currentTurn}'s turn`;
+    }
+    if (invalidMove) {
+        message += `\nYou can't move there you stupid fucking idiot!`;
+    }
+    message += `\n\n${visual}`;
+
+    return message;
+}
+
+function drop(column, currentTurn, board) {
+    if (board[0][column] !== empty) {
+        return null;
+    }
+
+    for (var i = 5; i >= 0; i--) {
+        if (board[i][column] === empty) {
+            board[i][column] = currentTurn;
+            return checkVictory(column, i, currentTurn, board);
+        }
+    }
+
+    return false;
+}
+
+function checkVictory(column, row, currentTurn, board) {
+    return checkVertical(column, row, currentTurn, board)
+        || checkHorizontal(column, row, currentTurn, board)
+        || checkDiagonalLeft(column, row, currentTurn, board)
+        || checkDiagonalRight(column, row, currentTurn, board);
+}
+
+function checkVertical(column, row, currentTurn, board) {
+    if (row > 2) {
+        return false;
+    }
+
+    return board[row][column] === currentTurn 
+        && board[row + 1][column] === currentTurn 
+        && board[row + 2][column] === currentTurn 
+        && board[row + 3][column] === currentTurn;
+}
+
+function checkHorizontal(column, row, currentTurn, board) {
+    const amount = 1 + sumLeft(column - 1, row, currentTurn, board) + sumRight(column + 1, row, currentTurn, board);
+    return amount >= 4;
+}
+
+function checkDiagonalLeft(column, row, currentTurn, board) {
+    const amount = 1 + sumBottomRight(column + 1, row + 1, currentTurn, board) + sumTopLeft(column - 1, row - 1, currentTurn, board);
+    return amount >= 4;
+}
+
+function checkDiagonalRight(column, row, currentTurn, board) {
+    const amount = 1 + sumBottomLeft(column - 1, row + 1, currentTurn, board) + sumTopRight(column + 1, row - 1, currentTurn, board);
+    return amount >= 4;
+}
+
+function sumLeft(column, row, currentTurn, board) {
+    if (column < 0) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumLeft(column - 1, row, currentTurn, board);
+}
+
+function sumRight(column, row, currentTurn, board) {
+    if (column > 6) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumRight(column + 1, row, currentTurn, board);
+}
+
+function sumBottomRight(column, row, currentTurn, board) {
+    if (column > 6) {
+        return 0;
+    }
+
+    if (row > 5) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumBottomRight(column + 1, row + 1, currentTurn, board);
+}
+
+function sumTopLeft(column, row, currentTurn, board) {
+    if (column < 0) {
+        return 0;
+    }
+
+    if (row < 0) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumTopLeft(column - 1, row - 1, currentTurn, board);
+}
+
+function sumBottomLeft(column, row, currentTurn, board) {
+    if (column < 0) {
+        return 0;
+    }
+
+    if (row > 5) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumBottomLeft(column - 1, row + 1, currentTurn, board);
+}
+
+function sumTopRight(column, row, currentTurn, board) {
+    if (column > 6) {
+        return 0;
+    }
+
+    if (row < 0) {
+        return 0;
+    }
+
+    if (board[row][column] !== currentTurn) {
+        return 0;
+    }
+
+    return 1 + sumTopRight(column + 1, row - 1, currentTurn, board);
+}
