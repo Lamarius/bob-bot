@@ -18,20 +18,9 @@ module.exports = {
             return;
         }
 
-        const gameName = `${challengerId}~${loserId}`;
-
-        const existingGame = interaction.client.games.get(gameName);
-
-        if (existingGame) {
-            // error message
-            return;
-        }
-
         const rows = 6;
         const columns = 7;
         const board = Array(6).fill(empty).map(() => Array(7).fill(empty));
-
-        interaction.client.games.set(gameName, board);
 
         const reply = printBoard(challengerId, loserId, red, board);
 
