@@ -113,7 +113,7 @@ function printBoard(challengerId, loserId, currentTurn, board, victory = false, 
         message += `\n${currentTurn}'s turn`;
     }
     if (lastMove !== null) {
-        const previousTurn = currentTurn === red ? black : red;
+        const previousTurn = victory ? currentTurn : currentTurn === red ? black : red;
         message += ` (${previousTurn} placed in column ${lastMove})`;
     }
     if (invalidMove) {
