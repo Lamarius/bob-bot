@@ -48,44 +48,57 @@ module.exports = {
 
         collector.on('collect', async (i) => {
             let boardState = false;
+            let lastMove = null;
             switch (i.customId) {
                 case 'one':
+                    lastMove = '1️⃣';
                     boardState = drop(0, currentTurn, board);
                     break;
                 case 'two':
+                    lastMove = '2️⃣';
                     boardState = drop(1, currentTurn, board);
                     break;
                 case 'three':
+                    lastMove = '3️⃣';
                     boardState = drop(2, currentTurn, board);
                     break;
                 case 'four':
+                    lastMove = '4️⃣';
                     boardState = drop(3, currentTurn, board);
                     break;
                 case 'five':
+                    lastMove = '5️⃣';
                     boardState = drop(4, currentTurn, board);
                     break;
                 case 'six':
+                    lastMove = '6️⃣';
                     boardState = drop(5, currentTurn, board);
                     break;
                 case 'seven':
+                    lastMove = '7️⃣';
                     boardState = drop(6, currentTurn, board);
                     break;
+            }
+
+            if (lastMove === null) {
+                // error message
+                return;
             }
 
             if (boardState === null) {
                 i.update({ content: printBoard(challengerId, loserId, currentTurn, board, false, true) });
             } else if (boardState === true) {
                 // victory
-                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, true), components: [], withResponse: false });
+                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, true, false, lastMove), components: [], withResponse: false });
             } else {
                 currentTurn = currentTurn === red ? black : red;
-                i.update( {content: printBoard(challengerId, loserId, currentTurn, board) });
+                i.update( {content: printBoard(challengerId, loserId, currentTurn, board, false, false, lastMove) });
             }
         });
     },
 }
 
-function printBoard(challengerId, loserId, currentTurn, board, victory = false, invalidMove = false) {
+function printBoard(challengerId, loserId, currentTurn, board, victory = false, invalidMove = false, lastMove = null) {
     const loser = userMention(loserId);
     const challenger = userMention(challengerId);
 
@@ -98,6 +111,10 @@ function printBoard(challengerId, loserId, currentTurn, board, victory = false, 
         message += `\n${currentTurn} won!`;
     } else {
         message += `\n${currentTurn}'s turn`;
+    }
+    if (lastMove !== null) {
+        const previousTurn = currentTurn === red ? black : red;
+        message += ` (${previousTurn} placed in column ${lastMove})`;
     }
     if (invalidMove) {
         message += `\nYou can't move there you stupid fucking idiot!`;
