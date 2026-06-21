@@ -3,6 +3,7 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, userMention
 const empty = ':white_circle:';
 const red = ':red_circle:';
 const black = ':black_circle:';
+const games = new Map();
 
 module.exports = {
     data: new SlashCommandBuilder()
@@ -12,11 +13,19 @@ module.exports = {
     async execute(interaction) {
         const opponentId = interaction.options.getUser('opponent')?.id;
         const challengerId = interaction.user.id;
+        const gameId = `${challengerId}~${opponentId}`;
 
         if (!opponentId) {
             // error message
             return;
         }
+
+        if (games.has(gameId)) {
+            // game already in progress
+            return;
+        }
+
+        games.set(gameId, []);
 
         const rows = 6;
         const columns = 7;
@@ -24,16 +33,19 @@ module.exports = {
 
         const reply = printBoard(challengerId, opponentId, red, board);
 
-        const one = new ButtonBuilder().setCustomId('one').setEmoji('1️⃣').setStyle(ButtonStyle.Secondary);
-        const two = new ButtonBuilder().setCustomId('two').setEmoji('2️⃣').setStyle(ButtonStyle.Secondary);
-        const three = new ButtonBuilder().setCustomId('three').setEmoji('3️⃣').setStyle(ButtonStyle.Secondary);
-        const four = new ButtonBuilder().setCustomId('four').setEmoji('4️⃣').setStyle(ButtonStyle.Secondary);
-        const five = new ButtonBuilder().setCustomId('five').setEmoji('5️⃣').setStyle(ButtonStyle.Secondary);
-        const six = new ButtonBuilder().setCustomId('six').setEmoji('6️⃣').setStyle(ButtonStyle.Secondary);
-        const seven = new ButtonBuilder().setCustomId('seven').setEmoji('7️⃣').setStyle(ButtonStyle.Secondary);
-        
+        const one = new ButtonBuilder().setCustomId('0').setEmoji('1️⃣').setStyle(ButtonStyle.Secondary);
+        const two = new ButtonBuilder().setCustomId('1').setEmoji('2️⃣').setStyle(ButtonStyle.Secondary);
+        const three = new ButtonBuilder().setCustomId('2').setEmoji('3️⃣').setStyle(ButtonStyle.Secondary);
+        const four = new ButtonBuilder().setCustomId('3').setEmoji('4️⃣').setStyle(ButtonStyle.Secondary);
+        const five = new ButtonBuilder().setCustomId('4').setEmoji('5️⃣').setStyle(ButtonStyle.Secondary);
+        const six = new ButtonBuilder().setCustomId('5').setEmoji('6️⃣').setStyle(ButtonStyle.Secondary);
+        const seven = new ButtonBuilder().setCustomId('6').setEmoji('7️⃣').setStyle(ButtonStyle.Secondary);
+
+        const undo = new ButtonBuilder().setCustomId('undo').setLabel('Undo').setEmoji('↩️').setStyle(ButtonStyle.Secondary);
+
         const actions = new ActionRowBuilder().addComponents(one, two, three, four, five);
         const actions2 = new ActionRowBuilder().addComponents(six, seven);
+        const actions3 = new ActionRowBuilder().addComponents(undo);
         const components = [actions, actions2];
         const response = await interaction.reply({ content: reply, components: components, withResponse: true });
 
@@ -47,58 +59,63 @@ module.exports = {
         let currentTurn = red;
 
         collector.on('collect', async (i) => {
+            const game = games.get(gameId);
+            const newComponents = [...components, actions3];
             let boardState = false;
             let lastMove = null;
-            switch (i.customId) {
-                case 'one':
-                    lastMove = '1️⃣';
-                    boardState = drop(0, currentTurn, board);
-                    break;
-                case 'two':
-                    lastMove = '2️⃣';
-                    boardState = drop(1, currentTurn, board);
-                    break;
-                case 'three':
-                    lastMove = '3️⃣';
-                    boardState = drop(2, currentTurn, board);
-                    break;
-                case 'four':
-                    lastMove = '4️⃣';
-                    boardState = drop(3, currentTurn, board);
-                    break;
-                case 'five':
-                    lastMove = '5️⃣';
-                    boardState = drop(4, currentTurn, board);
-                    break;
-                case 'six':
-                    lastMove = '6️⃣';
-                    boardState = drop(5, currentTurn, board);
-                    break;
-                case 'seven':
-                    lastMove = '7️⃣';
-                    boardState = drop(6, currentTurn, board);
-                    break;
-            }
+            if (i.customId === 'undo') {
+                if (!game?.length) {
+                    return;
+                }
 
-            if (lastMove === null) {
-                // error message
-                return;
+                const removed = game.pop();
+                if (!game.length) {
+                    newComponents.pop();
+                } else {
+                    lastMove = getLastMove(game[game.length - 1])
+                }
+                undoLastAction(removed, currentTurn === red ? black : red, board);
+            } else {
+                const column = Number(i.customId);
+                game.push(column);
+                lastMove = getLastMove(column);
+                boardState = drop(column, currentTurn, board);
             }
 
             if (boardState === null) {
-                i.update({ content: printBoard(challengerId, opponentId, currentTurn, board, false, true) });
+                i.update({ content: printBoard(challengerId, opponentId, currentTurn, board, false, true), components: newComponents });
             } else if (boardState === true) {
                 // victory
                 i.update({ content: printBoard(challengerId, opponentId, currentTurn, board, true, false, lastMove), components: [], withResponse: false });
+                games.delete(gameId);
             } else {
                 currentTurn = currentTurn === red ? black : red;
-                i.update( {content: printBoard(challengerId, opponentId, currentTurn, board, false, false, lastMove) });
+                i.update( {content: printBoard(challengerId, opponentId, currentTurn, board, false, false, lastMove), components: newComponents });
             }
         });
     },
 }
 
-function printBoard(challengerId, opponentId, currentTurn, board, victory = false, invalidMove = false, lastMove = null) {
+function getLastMove(lastMove) {
+    switch (lastMove) {
+        case 0:
+            return '1️⃣';
+        case 1:
+            return '2️⃣';
+        case 2:
+            return '3️⃣';
+        case 3:
+            return '4️⃣';
+        case 4:
+            return '5️⃣';
+        case 5:
+            return '6️⃣';
+        case 6:
+            return '7️⃣';
+    }
+}
+
+function printBoard(challengerId, opponentId, currentTurn, board, victory = false, invalidMove = false, lastMove = null, undoRequest = null) {
     const opponent = `${red} ${userMention(opponentId)}`;
     const challenger = `${black} ${userMention(challengerId)}`;
     const currentPlayer = currentTurn === red ? opponent : challenger;
@@ -140,6 +157,15 @@ function drop(column, currentTurn, board) {
     }
 
     return false;
+}
+
+function undoLastAction(column, currentTurn, board) {
+    for (var i = 0; i <= 5; i++) {
+        if (board[i][column] === currentTurn) {
+            board[i][column] = empty;
+            return;
+        }
+    }
 }
 
 function checkVictory(column, row, currentTurn, board) {
