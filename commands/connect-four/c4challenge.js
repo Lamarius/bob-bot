@@ -7,13 +7,13 @@ const black = ':black_circle:';
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('c4challenge')
-        .setDescription('Challenge a loser to connect 4')
-        .addMentionableOption(option => option.setName('loser').setDescription('The loser you want to beat.').setRequired(true)),
+        .setDescription('Challenge someone to Connect 4')
+        .addMentionableOption(option => option.setName('opponent').setDescription('The person you\'d like to challenge as your opponent. The opponent always goes first.').setRequired(true)),
     async execute(interaction) {
-        const loserId = interaction.options.getUser('loser')?.id;
+        const opponentId = interaction.options.getUser('opponent')?.id;
         const challengerId = interaction.user.id;
 
-        if (!loserId) {
+        if (!opponentId) {
             // error message
             return;
         }
@@ -22,7 +22,7 @@ module.exports = {
         const columns = 7;
         const board = Array(6).fill(empty).map(() => Array(7).fill(empty));
 
-        const reply = printBoard(challengerId, loserId, red, board);
+        const reply = printBoard(challengerId, opponentId, red, board);
 
         const one = new ButtonBuilder().setCustomId('one').setEmoji('1️⃣').setStyle(ButtonStyle.Secondary);
         const two = new ButtonBuilder().setCustomId('two').setEmoji('2️⃣').setStyle(ButtonStyle.Secondary);
@@ -37,7 +37,7 @@ module.exports = {
         const components = [actions, actions2];
         const response = await interaction.reply({ content: reply, components: components, withResponse: true });
 
-        const collectorFilter = i => [loserId, challengerId].includes(i);
+        const collectorFilter = i => [opponentId, challengerId].includes(i);
 
         const collector = response.resource.message.createMessageComponentCollector({
             componentType: ComponentType.Button,
@@ -86,38 +86,41 @@ module.exports = {
             }
 
             if (boardState === null) {
-                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, false, true) });
+                i.update({ content: printBoard(challengerId, opponentId, currentTurn, board, false, true) });
             } else if (boardState === true) {
                 // victory
-                i.update({ content: printBoard(challengerId, loserId, currentTurn, board, true, false, lastMove), components: [], withResponse: false });
+                i.update({ content: printBoard(challengerId, opponentId, currentTurn, board, true, false, lastMove), components: [], withResponse: false });
             } else {
                 currentTurn = currentTurn === red ? black : red;
-                i.update( {content: printBoard(challengerId, loserId, currentTurn, board, false, false, lastMove) });
+                i.update( {content: printBoard(challengerId, opponentId, currentTurn, board, false, false, lastMove) });
             }
         });
     },
 }
 
-function printBoard(challengerId, loserId, currentTurn, board, victory = false, invalidMove = false, lastMove = null) {
-    const loser = userMention(loserId);
-    const challenger = userMention(challengerId);
+function printBoard(challengerId, opponentId, currentTurn, board, victory = false, invalidMove = false, lastMove = null) {
+    const opponent = `${red} ${userMention(opponentId)}`;
+    const challenger = `${black} ${userMention(challengerId)}`;
+    const currentPlayer = currentTurn === red ? opponent : challenger;
+    const otherPlayer = currentTurn === red ? challenger : opponent;
 
     let visual = '';
     board.forEach(row => visual += row.join('') + '\n');
     visual += ':one::two::three::four::five::six::seven:';
 
-    let message = `${red}${loser}, you have been challenged to 4 In A Line by ${black}${challenger}!`
+    let message = `${opponent}, you have been challenged to Connect 4 by ${challenger}!`
     if (victory) {
-        message += `\n${currentTurn} won!`;
+        message += `\n${currentPlayer} won!`;
     } else {
-        message += `\n${currentTurn}'s turn`;
+        message += `\n${currentPlayer}'s turn`;
     }
+
     if (lastMove !== null) {
-        const previousTurn = victory ? currentTurn : currentTurn === red ? black : red;
-        message += ` (${previousTurn} placed in column ${lastMove})`;
+        message += ` (${victory ? currentPlayer : otherPlayer} placed in column ${lastMove})`;
     }
+
     if (invalidMove) {
-        message += `\nYou can't move there you stupid fucking idiot!`;
+        message += `\n${currentPlayer} invalid move! Try again.`;
     }
     message += `\n\n${visual}`;
 
