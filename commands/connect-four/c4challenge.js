@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, userMention, SlashCommandBuilder } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, userMention, SlashCommandBuilder, MessageFlags } = require('discord.js');
 
 const empty = ':white_circle:';
 const red = ':red_circle:';
@@ -9,19 +9,20 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('c4challenge')
         .setDescription('Challenge someone to Connect 4')
-        .addMentionableOption(option => option.setName('opponent').setDescription('The person you\'d like to challenge as your opponent. The opponent always goes first.').setRequired(true)),
+        .addMentionableOption(option => option.setName('opponent').setDescription('The person you\'d like to challenge as your opponent. Your opponent always goes first.').setRequired(true)),
     async execute(interaction) {
         const opponentId = interaction.options.getUser('opponent')?.id;
         const challengerId = interaction.user.id;
         const gameId = `${challengerId}~${opponentId}`;
 
         if (!opponentId) {
-            // error message
+            interaction.reply({ content: 'You should probably actually challenge someone.', flags: MessageFlags.Ephemeral });
             return;
         }
 
         if (games.has(gameId)) {
-            // game already in progress
+            const guildId = interaction.guildId;
+            interaction.reply({ content: `You already have a game in progress with ${userMention(opponentId)}. I would like to be able to print the game out again but idk how to do that yet. Rip.`, flags: MessageFlags.Ephemeral });
             return;
         }
 
@@ -59,11 +60,20 @@ module.exports = {
         let currentTurn = red;
 
         collector.on('collect', async (i) => {
+            if (i.user.id !== challengerId && i.user.id !== opponentId) {
+                i.reply({ content: 'You\'re not participating in this game. If you would like to play, challenge someone using the \`/c4challenge\` command!', flags: MessageFlags.Ephemeral });
+            }
             const game = games.get(gameId);
             const newComponents = [...components, actions3];
             let boardState = false;
             let lastMove = null;
             if (i.customId === 'undo') {
+                const previousPlayer = currentTurn === red ? challengerId : opponentId;
+                if (i.user.id !== previousPlayer) {
+                    i.reply({ content: 'You cannot undo your opponent\'s previous move.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+
                 if (!game?.length) {
                     return;
                 }
@@ -76,6 +86,12 @@ module.exports = {
                 }
                 undoLastAction(removed, currentTurn === red ? black : red, board);
             } else {
+                const currentPlayer = currentTurn === red ? opponentId : challengerId;
+                if (i.user.id !== currentPlayer) {
+                    i.reply({ content: 'It\'s not your turn.', flags: MessageFlags.Ephemeral });
+                    return;
+                }
+
                 const column = Number(i.customId);
                 game.push(column);
                 lastMove = getLastMove(column);
