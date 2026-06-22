@@ -8,6 +8,10 @@ const foldersPath = path.join(__dirname, 'commands');
 const commandFolders = fs.readdirSync(foldersPath);
 
 for (const folder of commandFolders) {
+    if (folder === 'utility' && !guildId) {
+        continue;
+    }
+
     const commandsPath = path.join(foldersPath, folder);
     const commandFiles = fs.readdirSync(commandsPath).filter((file) => file.endsWith('.js'));
     for (const file of commandFiles) {
@@ -27,7 +31,14 @@ const rest = new REST().setToken(token);
     try {
         console.log(`Started refreshing ${commands.length} application (/) commands.`);
 
-        const data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
+        let data;
+        if (guildId) {
+            console.log('Adding for guild');
+            data = await rest.put(Routes.applicationGuildCommands(clientId, guildId), { body: commands });
+        } else {
+            console.log('Adding globally');
+            data = await rest.put(Routes.applicationCommands(clientId), { body: commands });
+        }
 
         console.log(`Successfully reloaded ${data.length} application (/) commands.`);
     } catch (error) {

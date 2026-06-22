@@ -20,7 +20,7 @@ module.exports = {
             return;
         }
 
-        if (games.has(gameId)) {
+        if (games.has(gameId) || games.has(`${opponentId}~${challengerId}`)) {
             const guildId = interaction.guildId;
             interaction.reply({ content: `You already have a game in progress with ${userMention(opponentId)}. I would like to be able to print the game out again but idk how to do that yet. Rip.`, flags: MessageFlags.Ephemeral });
             return;
